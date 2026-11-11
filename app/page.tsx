@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import {
-  certificates as portfolioCertificates,
+  formatCertificateDate,
   getProjectPeriod,
+  type Certificate,
   type PersonalData,
   type Project,
 } from "@/lib/portfolio-content";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getPersonalData, getProjects } from "@/lib/database";
+import { getCertificates, getPersonalData, getProjects } from "@/lib/database";
+import ProjectImage from "@/app/components/project-image";
 
 type TechStackGroup = {
   title: string;
@@ -107,9 +109,34 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectsError, setProjectsError] = useState(false);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [isLoadingCertificates, setIsLoadingCertificates] = useState(true);
+  const [certificatesError, setCertificatesError] = useState(false);
 
   useEffect(() => {
     setIsDarkTheme(window.localStorage.getItem("portfolio-theme") === "dark");
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCertificates = async () => {
+      try {
+        const data = await getCertificates();
+        if (isMounted) setCertificates(data);
+      } catch (error) {
+        console.error("Failed to fetch certificates:", error);
+        if (isMounted) setCertificatesError(true);
+      } finally {
+        if (isMounted) setIsLoadingCertificates(false);
+      }
+    };
+
+    void loadCertificates();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -434,7 +461,7 @@ export default function Home() {
                 projects.slice(0, 3).map((project, projectIndex) => {
                   const projectImages = (project.project_images ?? []).slice(
                     0,
-                    2,
+                    4,
                   );
                   const imageSlots =
                     projectImages.length > 0 ? projectImages : [null];
@@ -445,22 +472,27 @@ export default function Home() {
                       key={project.id ?? `project-${projectIndex}`}
                       className="grid gap-6 py-8 px-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-10 rounded-3xl theme-border shadow-lg"
                     >
-                      <div className="grid grid-cols-1 gap-4.5 sm:gap-5">
-                        {imageSlots.map((image, imageIndex) => (
-                          <div
-                            key={`${project.id ?? projectIndex}-photo-${imageIndex}`}
-                            role="img"
-                            aria-label={`Foto ${imageIndex + 1} untuk ${project.project_name}`}
-                            className="relative aspect-video overflow-hidden rounded-lg border theme-border theme-soft shadow-2xl"
-                            style={{
-                              backgroundImage: image
-                                ? `url("${image.image_url}")`
-                                : undefined,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                            }}
-                          />
-                        ))}
+                      <div className="grid grid-cols-2 gap-4.5 sm:gap-5">
+                        {imageSlots.map((image, imageIndex) =>
+                          image?.image_url ? (
+                            <ProjectImage
+                              key={`${project.id ?? projectIndex}-photo-${imageIndex}`}
+                              imageUrl={image.image_url}
+                              alt={
+                                image.image_name ||
+                                `${project.project_name} - foto ${imageIndex + 1}`
+                              }
+                              className="aspect-video rounded-lg border theme-border theme-soft shadow-2xl cursor-pointer hover:-translate-y-1 transition duration-300"
+                            />
+                          ) : (
+                            <div
+                              key={`${project.id ?? projectIndex}-photo-${imageIndex}`}
+                              className="flex aspect-video items-center justify-center rounded-lg border theme-border theme-soft text-xs theme-subtle"
+                            >
+                              Image unavailable
+                            </div>
+                          ),
+                        )}
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -548,91 +580,128 @@ export default function Home() {
           </div>
 
           <div className="mt-10 space-y-4">
-            {portfolioCertificates.slice(0, 3).map((certificate) => (
-              <article
-                key={certificate.id}
-                className="grid gap-5 rounded-3xl border theme-border p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center lg:gap-7"
+            {isLoadingCertificates ? (
+              <p className="rounded-3xl border theme-border p-6 text-sm theme-muted">
+                Loading certificates...
+              </p>
+            ) : certificatesError ? (
+              <p
+                className="rounded-3xl border theme-border p-6 text-sm theme-muted"
+                role="status"
               >
-                <div
-                  role="img"
-                  aria-label={`Certificate image: ${certificate.title}`}
-                  className="aspect-video overflow-hidden rounded-xl theme-soft"
-                  style={{
-                    backgroundImage: `url("${certificate.image}")`,
-                    backgroundPosition: "center",
-                    backgroundSize: "cover",
-                  }}
-                />
+                Certificates could not be loaded.
+              </p>
+            ) : certificates.length === 0 ? (
+              <p className="rounded-3xl border theme-border p-6 text-sm theme-muted">
+                No certificates to display yet.
+              </p>
+            ) : (
+              certificates.slice(0, 3).map((certificate, index) => {
+                const title =
+                  certificate.certificate_name || "Certificate title";
 
-                <div className="min-w-0">
-                  <h3 className="text-lg font-bold leading-snug tracking-tight sm:text-xl">
-                    {certificate.title}
-                  </h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
-                    <p className="flex items-center gap-2.5 text-sm theme-muted">
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-5 w-5 shrink-0"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-8h6v8M8 9h.01M16 9h.01"
-                        />
-                      </svg>
-                      {certificate.issuer}
-                    </p>
-                    <span className="inline-flex items-center gap-2.5 text-sm theme-muted">
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-5 w-5 shrink-0"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      >
-                        <rect x="3" y="5" width="18" height="16" rx="2" />
-                        <path strokeLinecap="round" d="M16 3v4M8 3v4M3 10h18" />
-                      </svg>
-                      Obtained in {certificate.date}
-                    </span>
-                    <span className="rounded-full theme-soft px-4 py-2 text-xs font-semibold theme-accent-text">
-                      {certificate.category}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex border-t theme-border pt-4 lg:h-20 lg:items-center lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-                  <a
-                    href={certificate.credentialUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold theme-foreground transition hover:-translate-y-0.5 lg:w-auto"
-                    style={{ borderColor: "var(--accent)" }}
+                return (
+                  <article
+                    key={certificate.id ?? `certificate-${index}`}
+                    className="grid gap-5 rounded-3xl border theme-border p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center lg:gap-7"
                   >
-                    View Credential
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="h-4 w-4"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
+                    <div
+                      role="img"
+                      aria-label={`Certificate image: ${title}`}
+                      className="flex aspect-video items-center justify-center overflow-hidden rounded-xl theme-soft text-xs theme-subtle"
+                      style={{
+                        backgroundImage: certificate.image_url
+                          ? `url("${certificate.image_url}")`
+                          : undefined,
+                        backgroundPosition: "center",
+                        backgroundSize: "cover",
+                      }}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M14 4h6v6m-11 5L20 4M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"
-                      />
-                    </svg>
-                  </a>
-                </div>
-              </article>
-            ))}
+                      {!certificate.image_url && "Certificate image"}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-bold leading-snug tracking-tight sm:text-xl">
+                        {title}
+                      </h3>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+                        <p className="flex items-center gap-2.5 text-sm theme-muted">
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            className="h-5 w-5 shrink-0"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-8h6v8M8 9h.01M16 9h.01"
+                            />
+                          </svg>
+                          {certificate.certificate_authority ||
+                            "Certificate authority"}
+                        </p>
+                        <span className="inline-flex items-center gap-2.5 text-sm theme-muted">
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            className="h-5 w-5 shrink-0"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <rect x="3" y="5" width="18" height="16" rx="2" />
+                            <path
+                              strokeLinecap="round"
+                              d="M16 3v4M8 3v4M3 10h18"
+                            />
+                          </svg>
+                          Obtained in{" "}
+                          {formatCertificateDate(certificate.date_obtained)}
+                        </span>
+                        <span className="rounded-full theme-soft px-4 py-2 text-xs font-semibold theme-accent-text">
+                          {certificate.category || "Category"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex border-t theme-border pt-4 lg:h-20 lg:items-center lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                      {certificate.credential_url ? (
+                        <a
+                          href={certificate.credential_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold theme-foreground transition hover:-translate-y-0.5 lg:w-auto"
+                          style={{ borderColor: "var(--accent)" }}
+                        >
+                          View Credential
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            className="h-4 w-4"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M14 4h6v6m-11 5L20 4M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"
+                            />
+                          </svg>
+                        </a>
+                      ) : (
+                        <span className="text-xs theme-subtle">
+                          Credential link not provided
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
+            )}
           </div>
         </div>
       </section>

@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ThemeShell from "@/app/components/theme-shell";
+import ProjectImage from "@/app/components/project-image";
 import { getProjects } from "@/lib/database";
-import { getProjectPeriod } from "@/lib/portfolio-content";
+import { getProjectImages, getProjectPeriod } from "@/lib/portfolio-content";
 
 type ProjectDetailPageProps = {
   searchParams: Promise<{ id?: string | string[] }>;
@@ -36,7 +37,7 @@ async function ProjectDetail({ searchParams }: ProjectDetailPageProps) {
   const project = projects.find((item) => String(item.id) === projectId);
   if (!project) notFound();
 
-  const images = getProjectImages(project.images);
+  const images = getProjectImages(project);
   const title = project.project_name || "Project title";
   const period = getProjectPeriod(project);
 
@@ -56,23 +57,20 @@ async function ProjectDetail({ searchParams }: ProjectDetailPageProps) {
 
       {images.length > 0 && (
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {images.slice(0, 4).map((image, index) => (
-            <div
-              key={`${project.id}-image-${index}`}
-              role="img"
-              aria-label={`Foto ${index + 1} untuk ${title}`}
-              className={`relative flex min-h-56 items-end overflow-hidden rounded-2xl theme-soft p-5 ${index === 0 ? "aspect-[16/9] sm:col-span-2" : "aspect-[4/3]"}`}
-              style={{
-                backgroundImage: `linear-gradient(180deg, transparent 55%, rgb(20 24 18 / 45%)), url("${image}")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              <span className="rounded-full bg-black/25 px-3 py-1.5 text-xs text-white backdrop-blur">
-                Foto {String(index + 1).padStart(2, "0")}
-              </span>
-            </div>
-          ))}
+            {images.slice(0, 4).map((image, index) =>
+              image.image_url ? (
+                <ProjectImage
+                  key={`${project.id}-image-${index}`}
+                  imageUrl={image.image_url}
+                  alt={image.image_name || `${title} - foto ${index + 1}`}
+                  className={`relative flex min-h-56 items-end rounded-2xl theme-soft p-5 ${index === 0 ? "aspect-[16/9] sm:col-span-2" : "aspect-[4/3]"}`}
+                >
+                  <span className="rounded-full bg-black/25 px-3 py-1.5 text-xs text-white backdrop-blur">
+                    Foto {String(index + 1).padStart(2, "0")}
+                  </span>
+                </ProjectImage>
+              ) : null,
+            )}
         </div>
       )}
 

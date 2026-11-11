@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import ThemeShell from "@/app/components/theme-shell";
 import { getProjects } from "@/lib/database";
-import { getProjectPeriod } from "@/lib/portfolio-content";
+import { getProjectImages, getProjectPeriod } from "@/lib/portfolio-content";
 
 export default function PortfolioPage() {
   return (
@@ -64,7 +64,7 @@ async function ProjectCards() {
   return (
     <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project, index) => {
-        const images = getProjectImages(project.images);
+        const images = getProjectImages(project);
         const title = project.project_name || "Project title";
 
         return (
@@ -78,8 +78,8 @@ async function ProjectCards() {
               aria-label={`Foto utama ${title}`}
               className="relative flex aspect-[4/3] items-end overflow-hidden theme-soft p-5"
               style={{
-                backgroundImage: images[0]
-                  ? `linear-gradient(180deg, transparent 42%, rgb(20 24 18 / 42%)), url("${images[0]}")`
+                backgroundImage: images[0]?.image_url
+                  ? `linear-gradient(180deg, transparent 42%, rgb(20 24 18 / 42%)), url("${images[0].image_url}")`
                   : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: "center",

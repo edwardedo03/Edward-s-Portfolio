@@ -22,6 +22,7 @@ export type ProjectImages = {
   id_project: number | null;
   image_name: string | null;
   image_url: string | null;
+  sort: number | null;
 };
 
 export type Project = {
@@ -37,13 +38,19 @@ export type Project = {
 
 export type Certificate = {
   id: number | null;
-  certificated_name: string | null;
+  certificate_name: string | null;
   category: string | null;
   certificate_authority: string | null;
   date_obtained: string | null;
   image_url: string | null;
   credential_url: string | null;
 };
+
+export function getProjectImages(project: Project): ProjectImages[] {
+  return (project.project_images ?? [])
+    .filter((image) => Boolean(image.image_url))
+    .sort((first, second) => (first.sort ?? 0) - (second.sort ?? 0));
+}
 
 function formatProjectDate(value: string | null): string | null {
   if (!value) return null;
@@ -69,48 +76,14 @@ export function getProjectPeriod(project: Project): string {
     .join(" - ");
 }
 
-export type PortfolioCertificate = {
-  id: string;
-  title: string;
-  issuer: string;
-  date: string;
-  category: string;
-  description: string;
-  image: string;
-  credentialUrl: string;
-};
+export function formatCertificateDate(value: string | null): string {
+  if (!value) return "Date not provided";
 
-export const certificates: PortfolioCertificate[] = [
-  {
-    id: "sertifikat-pertama",
-    title: "Nama Sertifikat Pertama",
-    issuer: "Nama Penyelenggara",
-    date: "15 Mei 2025",
-    category: "Data Analytics",
-    description:
-      "Jelaskan materi, keterampilan, atau pencapaian yang kamu peroleh dari sertifikat ini.",
-    image: "/images/certificates/sertifikat-pertama.jpg",
-    credentialUrl: "https://example.com/credential/sertifikat-pertama",
-  },
-  {
-    id: "sertifikat-kedua",
-    title: "Nama Sertifikat Kedua",
-    issuer: "Nama Penyelenggara",
-    date: "20 November 2024",
-    category: "Machine Learning",
-    description:
-      "Tambahkan penjelasan singkat tentang pelatihan atau pencapaian ini.",
-    image: "/images/certificates/sertifikat-kedua.jpg",
-    credentialUrl: "https://example.com/credential/sertifikat-kedua",
-  },
-  {
-    id: "sertifikat-ketiga",
-    title: "Nama Sertifikat Ketiga",
-    issuer: "Nama Penyelenggara",
-    date: "8 Agustus 2024",
-    category: "Web Development",
-    description: "Tuliskan keterampilan atau hal penting yang kamu pelajari.",
-    image: "/images/certificates/sertifikat-ketiga.jpg",
-    credentialUrl: "https://example.com/credential/sertifikat-ketiga",
-  },
-];
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
