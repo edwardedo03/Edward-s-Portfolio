@@ -1,74 +1,102 @@
 "use client";
 
-import supabase from "@/lib/supabase-client";
 import Link from "next/link";
-import { Timestamp } from "next/dist/server/lib/cache-handlers/types";
+import {
+  certificates as portfolioCertificates,
+  getProjectPeriod,
+  type PersonalData,
+  type Project,
+} from "@/lib/portfolio-content";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { getPersonalData, getProjects } from "@/lib/database";
 
-type PersonalData = {
-  id?: number | null;
-  updated_at?: Timestamp | null;
-  full_name?: string | null;
-  short_name?: string | null;
-  family_name?: string | null;
-  age?: number | null;
-  current_job?: string | null;
-  job_description?: string | null;
-  city_of_domicile?: string | null;
-  current_institution?: string | null;
-  university_major?: string | null;
-  current_status?: string | null;
-  image_path?: string | null;
-  linkedin_url?: string | null;
-  github_url?: string | null;
-  instagram_url?: string | null;
+type TechStackGroup = {
+  title: string;
+  description: string;
+  icon: string;
+  technologies: { name: string; mark: string; color: string }[];
 };
 
-const projects = [
+const leftTechStacks: TechStackGroup[] = [
   {
-    number: "01",
-    title: "Nama Proyek Pertama",
-    category: "Web Development",
-    year: "2025",
-    description:
-      "Tulis ringkasan singkat tentang masalah yang diselesaikan dan kontribusimu di proyek ini.",
+    title: "Languages",
+    description: "Programming languages I use regularly.",
+    icon: "</>",
+    technologies: [
+      { name: "JavaScript", mark: "JS", color: "#eab308" },
+      { name: "TypeScript", mark: "TS", color: "#3b82f6" },
+      { name: "Python", mark: "Py", color: "#38bdf8" },
+      { name: "Java", mark: "Ja", color: "#f97316" },
+    ],
   },
   {
-    number: "02",
-    title: "Nama Proyek Kedua",
-    category: "UI / UX Design",
-    year: "2024",
-    description:
-      "Ceritakan tujuan proyek, proses yang kamu jalani, dan hasil yang paling kamu banggakan.",
-  },
-  {
-    number: "03",
-    title: "Nama Proyek Ketiga",
-    category: "Data & Research",
-    year: "2024",
-    description:
-      "Tambahkan satu atau dua kalimat yang menjelaskan proyek ini dengan jelas.",
+    title: "Frontend",
+    description: "Technologies for building modern user interfaces.",
+    icon: "▣",
+    technologies: [
+      { name: "React", mark: "⚛", color: "#22d3ee" },
+      { name: "Next.js", mark: "N", color: "var(--foreground)" },
+      { name: "Tailwind CSS", mark: "≈", color: "#38bdf8" },
+      { name: "Figma", mark: "F", color: "#e879f9" },
+    ],
   },
 ];
 
-const certificates = [
+const rightTechStacks: TechStackGroup[] = [
   {
-    title: "Nama Sertifikat / Pelatihan",
-    issuer: "Penyelenggara",
-    year: "2025",
+    title: "Backend",
+    description:
+      "Technologies for building and managing server-side applications.",
+    icon: "▤",
+    technologies: [
+      { name: "Node.js", mark: "⬡", color: "#84cc16" },
+      { name: "Flask", mark: "ƒ", color: "var(--foreground)" },
+      { name: "PHP", mark: "php", color: "#a78bfa" },
+      { name: "MySQL", mark: "SQL", color: "#38bdf8" },
+    ],
   },
   {
-    title: "Nama Sertifikat / Pelatihan",
-    issuer: "Penyelenggara",
-    year: "2024",
-  },
-  {
-    title: "Nama Sertifikat / Pelatihan",
-    issuer: "Penyelenggara",
-    year: "2024",
+    title: "Tools",
+    description: "Development and productivity tools I frequently use.",
+    icon: "⚒",
+    technologies: [
+      { name: "GitHub", mark: "GH", color: "var(--foreground)" },
+      { name: "Docker", mark: "◈", color: "#38bdf8" },
+      { name: "Supabase", mark: "↯", color: "#34d399" },
+      { name: "VS Code", mark: "⌘", color: "#38bdf8" },
+    ],
   },
 ];
+
+function TechStackCard({ group }: { group: TechStackGroup }) {
+  return (
+    <article className="rounded-3xl theme-border theme-surface p-5 shadow-lg sm:p-6">
+      <div className="flex items-center gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl theme-soft text-lg font-semibold theme-accent-text">
+          {group.icon}
+        </span>
+        <div>
+          <h3 className="text-base font-semibold">{group.title}</h3>
+        </div>
+      </div>
+      <ul className="mt-5 space-y-2.5">
+        {group.technologies.map((technology) => (
+          <li key={technology.name} className="flex items-center gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg theme-soft text-xs font-bold"
+              style={{ color: technology.color }}
+            >
+              {technology.mark}
+            </span>
+            <span>{technology.name}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
 
 export default function Home() {
   const [personalData, setPersonalData] = useState<PersonalData | null>(null);
@@ -76,6 +104,9 @@ export default function Home() {
   const [personalDataError, setPersonalDataError] = useState(false);
   const [isNavbarFloating, setIsNavbarFloating] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectsError, setProjectsError] = useState(false);
 
   useEffect(() => {
     setIsDarkTheme(window.localStorage.getItem("portfolio-theme") === "dark");
@@ -91,26 +122,47 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const getPersonalData = async () => {
-      const { data, error } = await supabase
-        .from("personal_data")
-        .select("*")
-        .order("id_edward", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    let isMounted = true;
 
-      if (error) {
-        console.error("Error getting personal information:", error);
-        setPersonalDataError(true);
-      } else {
-        console.log("Personal data fetched:", data);
-        setPersonalData((data as PersonalData | null) ?? null);
+    const loadPersonalData = async () => {
+      try {
+        const data = await getPersonalData();
+        if (isMounted) setPersonalData((data as PersonalData | null) ?? null);
+      } catch (error) {
+        console.error("Failed to fetch personal information:", error);
+        if (isMounted) setPersonalDataError(true);
+      } finally {
+        if (isMounted) setIsLoadingPersonalData(false);
       }
-
-      setIsLoadingPersonalData(false);
     };
 
-    void getPersonalData();
+    void loadPersonalData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProjects = async () => {
+      try {
+        const data = await getProjects();
+        if (isMounted) setProjects(data);
+      } catch (error) {
+        console.error("Failed to fetch projects:", error);
+        if (isMounted) setProjectsError(true);
+      } finally {
+        if (isMounted) setIsLoadingProjects(false);
+      }
+    };
+
+    void loadProjects();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const displayValue = (
@@ -147,12 +199,12 @@ export default function Home() {
           <a className="transition theme-hover" href="#tentang">
             About
           </a>
-          <Link className="transition theme-hover" href="/portfolio">
+          <a className="transition theme-hover" href="#proyek">
             Projects
-          </Link>
-          <Link className="transition theme-hover" href="/certificate">
+          </a>
+          <a className="transition theme-hover" href="/#sertifikat">
             Certificates
-          </Link>
+          </a>
         </nav>
         <div className="flex items-center gap-4">
           <button
@@ -241,6 +293,11 @@ export default function Home() {
               ? "Loading..."
               : displayValue(personalData?.job_description, "...")}
           </p>
+          {personalDataError && (
+            <p className="mt-3 text-xs theme-subtle" role="status">
+              Could not load profile information. Please try again later.
+            </p>
+          )}
           <div className="mt-9 flex flex-wrap gap-3">
             <a
               href="#proyek"
@@ -257,11 +314,15 @@ export default function Home() {
           </div>
         </div>
         <div className="relative mx-auto w-full max-w-sm md:ml-auto">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] theme-soft">
-            {personalData?.image_path ? (
+          <div className="relative aspect-4/5 overflow-hidden rounded-4xl theme-soft">
+            {isLoadingPersonalData ? (
+              <div className="flex h-full items-center justify-center theme-subtle">
+                Loading...
+              </div>
+            ) : personalData?.image_path ? (
               <Image
                 fill
-                src={personalData?.image_path}
+                src={personalData.image_path}
                 alt=""
                 sizes="(max-width: 768px) 100vw, 384px"
                 className="object-cover object-center select-none"
@@ -270,7 +331,9 @@ export default function Home() {
               />
             ) : (
               <div className="flex h-full items-center justify-center theme-subtle">
-                Loading...
+                {personalDataError
+                  ? "Photo unavailable"
+                  : "Add a profile photo"}
               </div>
             )}
           </div>
@@ -320,72 +383,254 @@ export default function Home() {
 
       <section
         id="proyek"
-        className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-24"
+        className="mx-auto max-w-[1800px] px-6 py-20 sm:px-10 sm:py-24"
       >
-        <div className="flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
-              Some of my projects
-            </h2>
-          </div>
-          <p className="max-w-sm text-sm leading-6 theme-muted">Since 2024</p>
-        </div>
-        <div className="mt-10 divide-y theme-dividers border-y theme-border">
-          {projects.map((project) => (
-            <article
-              key={project.number}
-              className="group grid gap-4 py-7 transition sm:grid-cols-[52px_1fr_auto] sm:items-start sm:gap-6"
-            >
-              <span className="pt-1 text-xs theme-subtle">
-                {project.number}
-              </span>
-              <div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <h3 className="text-lg font-medium tracking-tight">
-                    {project.title}
-                  </h3>
-                  <span className="text-xs theme-subtle">· {project.year}</span>
-                </div>
-                <p className="mt-2 max-w-2xl text-sm leading-6 theme-muted">
-                  {project.description}
+        <div className="grid gap-12 xl:grid-cols-[240px_minmax(0,1fr)_240px] xl:gap-10">
+          <aside
+            aria-label="Technology stack: languages and frontend"
+            className="grid content-start gap-10 sm:grid-cols-2 xl:grid-cols-1 xl:pt-31.5"
+          >
+            {leftTechStacks.map((group) => (
+              <TechStackCard key={group.title} group={group} />
+            ))}
+          </aside>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-end justify-between gap-5">
+              <div className="flex flex-col gap-3">
+                <p className="text-xs uppercase theme-accent-text">Projects</p>
+                <h2 className="text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
+                  Selected Projects
+                </h2>
+                <p className="max-w-md text-sm leading-6 theme-muted">
+                  A few projects i've worked on.
                 </p>
-                <div className="mt-4 flex h-32 items-center justify-center rounded-xl theme-soft text-xs uppercase tracking-[.16em] theme-subtle sm:h-40">
-                  Area gambar proyek
-                </div>
               </div>
-              <span className="text-xs theme-accent-text sm:pt-2">
-                {project.category}
-              </span>
-            </article>
-          ))}
+              <a
+                href="/portfolio"
+                className="mb-3 px-6 py-2.5 text-sm shrink-0 items-center justify-center rounded-full theme-border transition hover:scale-105 sm:ml-0 cursor-pointer hover:-translate-y-1 shadow-lg bg-(--tertier-soft) text-(--tertier) theme-action-hover hover:text-(--border) font-medium"
+                title="View all projects"
+              >
+                <b>View all projects</b>
+              </a>
+            </div>
+            <div className="mt-5 flex flex-col gap-8">
+              {isLoadingProjects ? (
+                <p className="rounded-3xl border theme-border p-6 text-sm theme-muted">
+                  Loading projects...
+                </p>
+              ) : projectsError ? (
+                <p
+                  className="rounded-3xl border theme-border p-6 text-sm theme-muted"
+                  role="status"
+                >
+                  Projects could not be loaded.
+                </p>
+              ) : projects.length === 0 ? (
+                <p className="rounded-3xl border theme-border p-6 text-sm theme-muted">
+                  No projects to display yet.
+                </p>
+              ) : (
+                projects.slice(0, 3).map((project, projectIndex) => {
+                  const projectImages = (project.project_images ?? []).slice(
+                    0,
+                    2,
+                  );
+                  const imageSlots =
+                    projectImages.length > 0 ? projectImages : [null];
+                  const projectPeriod = getProjectPeriod(project);
+
+                  return (
+                    <article
+                      key={project.id ?? `project-${projectIndex}`}
+                      className="grid gap-6 py-8 px-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-10 rounded-3xl theme-border shadow-lg"
+                    >
+                      <div className="grid grid-cols-1 gap-4.5 sm:gap-5">
+                        {imageSlots.map((image, imageIndex) => (
+                          <div
+                            key={`${project.id ?? projectIndex}-photo-${imageIndex}`}
+                            role="img"
+                            aria-label={`Foto ${imageIndex + 1} untuk ${project.project_name}`}
+                            className="relative aspect-video overflow-hidden rounded-lg border theme-border theme-soft shadow-2xl"
+                            style={{
+                              backgroundImage: image
+                                ? `url("${image.image_url}")`
+                                : undefined,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                            {project.project_name}
+                          </h3>
+                          <span className="rounded-full border theme-border px-3 py-1 text-xs theme-accent-text">
+                            {project.category || "Category"}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs font-medium uppercase tracking-[.12em] theme-subtle">
+                          {projectPeriod || "Add project dates"}
+                        </p>
+                        <p className="mt-4 max-w-2xl text-sm leading-7 theme-muted text-justify">
+                          {project.description || "Add a project description."}
+                        </p>
+                        <div className="flex gap-4">
+                          <a
+                            href={project.github_repository_url || "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Open GitHub repository ${project.project_name}`}
+                            className={`mt-6 inline-flex items-center gap-3 rounded-xl px-3 py-2 transition ${isDarkTheme ? "bg-[#1f2135] theme-action-hover" : "theme-soft hover:bg-[#1f2135]!"} hover:-translate-y-1 text-(--action) hover:text-(--soft) shadow-lg`}
+                          >
+                            <Image
+                              src="/icons/github-light.png"
+                              width={20}
+                              height={20}
+                              alt=""
+                            />
+                            <p className="text-sm font-semibold">
+                              View on GitHub
+                            </p>
+                          </a>
+                          <a
+                            href={`/portfolio/detail-portfolio?id=${project.id}`}
+                            aria-label={`Open project detail ${project.project_name}`}
+                            className={`mt-6 inline-flex items-end gap-2 rounded-xl px-4 py-2 transition theme-border theme-action-hover hover:-translate-y-1 text-(--action) hover:text-(--soft) shadow-lg`}
+                          >
+                            <p className="text-xs font-semibold">See details</p>
+                          </a>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <aside
+            aria-label="Technology stack: backend and tools"
+            className="grid content-start gap-10 sm:grid-cols-2 xl:grid-cols-1 xl:pt-31.5"
+          >
+            {rightTechStacks.map((group) => (
+              <TechStackCard key={group.title} group={group} />
+            ))}
+          </aside>
         </div>
       </section>
 
       <section id="sertifikat" className="border-y theme-border theme-surface">
-        <div className="mx-auto grid max-w-6xl gap-8 px-6 py-16 sm:px-10 sm:py-20 md:grid-cols-[.7fr_1.3fr]">
-          <div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em]">
-              Sertifikat.
-            </h2>
-            <p className="mt-3 max-w-xs text-sm leading-6 theme-muted">
-              Pelatihan dan pencapaian yang mendukung perjalanan saya.
-            </p>
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-20">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+            <div>
+              <div className="flex items-center gap-4">
+                <p className="text-xs font-bold tracking-[.12em] theme-accent-text">
+                  CERTIFICATES
+                </p>
+                <span className="h-px w-20 theme-accent" />
+              </div>
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">
+                Recent Certifications
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 theme-muted sm:text-base">
+                Some of the certifications and training programs I’ve completed.
+              </p>
+            </div>
+            <Link
+              href="/certificate"
+              className="inline-flex w-fit shrink-0 items-center gap-3 rounded-full theme-soft px-6 py-3 text-sm font-semibold theme-foreground transition hover:-translate-y-0.5"
+            >
+              View All Certificates <span aria-hidden="true">→</span>
+            </Link>
           </div>
-          <div className="divide-y theme-dividers border-y theme-border">
-            {certificates.map((certificate, index) => (
+
+          <div className="mt-10 space-y-4">
+            {portfolioCertificates.slice(0, 3).map((certificate) => (
               <article
-                key={`${certificate.title}-${index}`}
-                className="flex items-center justify-between gap-4 py-5"
+                key={certificate.id}
+                className="grid gap-5 rounded-3xl border theme-border p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center lg:gap-7"
               >
-                <div>
-                  <h3 className="text-sm font-medium">{certificate.title}</h3>
-                  <p className="mt-1 text-xs theme-subtle">
-                    {certificate.issuer}
-                  </p>
+                <div
+                  role="img"
+                  aria-label={`Certificate image: ${certificate.title}`}
+                  className="aspect-video overflow-hidden rounded-xl theme-soft"
+                  style={{
+                    backgroundImage: `url("${certificate.image}")`,
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }}
+                />
+
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold leading-snug tracking-tight sm:text-xl">
+                    {certificate.title}
+                  </h3>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <p className="flex items-center gap-2.5 text-sm theme-muted">
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="h-5 w-5 shrink-0"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-8h6v8M8 9h.01M16 9h.01"
+                        />
+                      </svg>
+                      {certificate.issuer}
+                    </p>
+                    <span className="inline-flex items-center gap-2.5 text-sm theme-muted">
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="h-5 w-5 shrink-0"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      >
+                        <rect x="3" y="5" width="18" height="16" rx="2" />
+                        <path strokeLinecap="round" d="M16 3v4M8 3v4M3 10h18" />
+                      </svg>
+                      Obtained in {certificate.date}
+                    </span>
+                    <span className="rounded-full theme-soft px-4 py-2 text-xs font-semibold theme-accent-text">
+                      {certificate.category}
+                    </span>
+                  </div>
                 </div>
-                <span className="shrink-0 text-xs theme-subtle">
-                  {certificate.year}
-                </span>
+
+                <div className="flex border-t theme-border pt-4 lg:h-20 lg:items-center lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                  <a
+                    href={certificate.credentialUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold theme-foreground transition hover:-translate-y-0.5 lg:w-auto"
+                    style={{ borderColor: "var(--accent)" }}
+                  >
+                    View Credential
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="h-4 w-4"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14 4h6v6m-11 5L20 4M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"
+                      />
+                    </svg>
+                  </a>
+                </div>
               </article>
             ))}
           </div>
@@ -398,10 +643,10 @@ export default function Home() {
       >
         <div className="flex flex-col justify-between gap-8 border-b theme-border pb-12 sm:flex-row sm:items-end">
           <div>
-            <h2 className="mt-4 max-w-xl text-4xl font-semibold leading-tight tracking-[-.05em] sm:text-5xl">
-              Punya ide menarik?
+            <h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-tighter sm:text-5xl">
+              Think we’d make a great team?
               <br />
-              Mari ngobrol.
+              Let’s connect!
             </h2>
           </div>
           <a
